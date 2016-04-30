@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/BorersMaps.iml" filepath="$PROJECT_DIR$/BorersMaps.iml" />
       <module fileurl="file://$PROJECT_DIR$/app/app.iml" filepath="$PROJECT_DIR$/app/app.iml" />
+      <module fileurl="file://$PROJECT_DIR$/borers-maps-android.iml" filepath="$PROJECT_DIR$/borers-maps-android.iml" />
     </modules>
   </component>
 </project>
