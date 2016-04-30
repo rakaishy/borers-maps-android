@@ -32,7 +32,7 @@
             android:name="com.google.android.geo.API_KEY" android:value="@string/google_maps_key" />
         <activity
             android:name=".map.services.MapsActivity"
-            android:label="@string/title_activity_maps">
+            android:label="Borers Maps">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
