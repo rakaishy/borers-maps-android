@@ -76,6 +76,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public static final String MIME_TEXT_PLAIN = "text/plain";
     private double latitude;
     private double longitude;
+    private static Context context;
 
 
     private TextView mTextView;
@@ -96,22 +97,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
-        ArrayList<String> rutasArray = new ArrayList<String>();
-
-        rutasArray.add("Valle Dorado");
-        rutasArray.add("Sauzal");
-        rutasArray.add("De aqui");
-        rutasArray.add("De un lado");
-
-        Spinner spinner = (Spinner) findViewById(R.id.rutas_spinner);
-        ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, R.layout.rutas_layout, rutasArray);
-        adapter.setDropDownViewResource(R.layout.rutas_dropdown_layout);
-
-        spinner.setAdapter(
-                new NoSeleccion(
-                        adapter,
-                        R.layout.no_seleccion,
-                        this));
         LinearLayout myLayout = (LinearLayout) findViewById(R.id.hl);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.setMargins(10, 0, 0, 0);
@@ -463,6 +448,15 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 String lat = coords[0];
                 String lon = coords[1];
                 String idStop = coords[2];
+                ArrayList<String> rutasArray = new ArrayList<String>();
+                Spinner spinner = (Spinner) findViewById(R.id.rutas_spinner);
+                ArrayAdapter<String> adapter = new ArrayAdapter<String>(getApplicationContext(), R.layout.rutas_layout, rutasArray);
+                adapter.setDropDownViewResource(R.layout.rutas_dropdown_layout);
+                spinner.setAdapter(
+                        new NoSeleccion(
+                                adapter,
+                                R.layout.no_seleccion,
+                                getApplicationContext()));
                 latitude = Double.valueOf(lat);
                 longitude = Double.valueOf(lon);
                 CameraUpdate center =
