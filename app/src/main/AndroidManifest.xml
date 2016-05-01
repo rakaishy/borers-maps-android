@@ -34,7 +34,7 @@
             android:value="AIzaSyD688kxikjTRqyzZH2IlF2GCO59A5VhKz0" />
 
         <activity
-            android:name=".map.services.MapsActivity"
+            android:name=".coreLogic.services.MapsActivity"
             android:label="Borers Maps">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

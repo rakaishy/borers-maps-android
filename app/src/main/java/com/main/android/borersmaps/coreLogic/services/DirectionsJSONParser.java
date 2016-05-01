@@ -1,4 +1,4 @@
-package com.main.android.borersmaps.map.services;
+package com.main.android.borersmaps.coreLogic.services;
 
 import com.google.android.gms.maps.model.LatLng;
 
