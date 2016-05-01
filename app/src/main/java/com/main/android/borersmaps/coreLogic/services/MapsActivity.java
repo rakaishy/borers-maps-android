@@ -1,4 +1,4 @@
-package com.main.android.borersmaps.map.services;
+package com.main.android.borersmaps.coreLogic.services;
 
 import android.Manifest;
 import android.app.Activity;
@@ -8,51 +8,39 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.location.Criteria;
-import android.location.Location;
 import android.location.LocationManager;
-import android.net.Uri;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
-import android.nfc.tech.IsoDep;
-import android.nfc.tech.MifareClassic;
-import android.nfc.tech.MifareUltralight;
 import android.nfc.tech.Ndef;
-import android.nfc.tech.NdefFormatable;
-import android.nfc.tech.NfcA;
-import android.nfc.tech.NfcB;
-import android.nfc.tech.NfcF;
-import android.nfc.tech.NfcV;
 import android.os.AsyncTask;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
-import android.text.TextUtils;
 import android.util.Log;
-import android.view.Menu;
+import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.LinearLayout;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.google.android.gms.appindexing.Action;
-import com.google.android.gms.appindexing.AppIndex;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptorFactory;
-import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.main.android.borersmaps.NoSeleccion;
 import com.main.android.borersmaps.R;
+import com.main.android.borersmaps.dataLayer.dto.routeEntity;
+import com.main.android.borersmaps.dataLayer.repository.routesRepository;
+import com.main.android.borersmaps.dataSources.sqlLiteDatabaseHelper;
 
 import org.json.JSONObject;
 
@@ -67,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Random;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -92,7 +81,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
         lm = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        // Obtain the SupportMapFragment and get notified when the map is ready to be used.
+        // Obtain the SupportMapFragment and get notified when the coreLogic is ready to be used.
         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
@@ -129,6 +118,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         // Destination of route
         String str_dest = "destination="+dest.latitude+","+dest.longitude;
+
 
         // Sensor enabled
         String sensor = "sensor=false";
@@ -193,7 +183,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             try{
                 // Fetching the data from web service
-                data = downloadUrl(url[0]);
+               data = downloadUrl(url[0]);
             }catch(Exception e){
                 Log.d("Background Task",e.toString());
             }
@@ -262,7 +252,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 // Adding all the points in the route to LineOptions
                 lineOptions.addAll(points);
                 lineOptions.width(10);
-                lineOptions.color(Color.BLUE);
+                Random rnd = new Random();
+                lineOptions.color(Color.argb(255, rnd.nextInt(256), rnd.nextInt(256), rnd.nextInt(256)));
             }
 
             // Drawing polyline in the Google Map for the i-th route
@@ -308,23 +299,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         mMap = googleMap;
 
-        double lat1 = 31.866646;
-        double lon1 = -116.666684;
-        double lat2 = 31.825615;
-        double lon2 = -116.599759;
-        LatLng origin = new LatLng(lat1, lon1);
-        LatLng destination = new LatLng(lat2, lon2);
-        mMap.addMarker(new MarkerOptions()
-                .position(new LatLng(lat1, lon1))
-                .title("INICIO"));
-        mMap.addMarker(new MarkerOptions()
-                .position(new LatLng(lat2, lon2))
-                .title("FINAL"));
-        String url = getDirectionsUrl(origin, destination);
-
-        DownloadTask downloadTask = new DownloadTask();
-
-        downloadTask.execute(url);
     }
 
     public static void setupForegroundDispatch(final Activity activity, NfcAdapter adapter) {
@@ -444,19 +418,39 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         @Override
         protected void onPostExecute(String result) {
             if (result != null) {
+                mMap.clear();
                 String[] coords = result.split(",");
                 String lat = coords[0];
                 String lon = coords[1];
                 String idStop = coords[2];
                 ArrayList<String> rutasArray = new ArrayList<String>();
+                sqlLiteDatabaseHelper myDbHelper = new sqlLiteDatabaseHelper(getApplication());
+                try {
+                    myDbHelper.createDataBase();
+                } catch (IOException ioe) {
+                    throw new Error("Unable to create database");
+                }
+                myDbHelper.openDataBase();
+                routesRepository repo = new routesRepository();
+                List<routeEntity> routes = repo.getRoutesByStopId(idStop,myDbHelper);
+                for(routeEntity route : routes){
+                    rutasArray.add(route.getName());
+                    List<LatLng> locations = repo.getRouteLocationById(route.getId(), myDbHelper);
+                    String url = getDirectionsUrl(locations.get(0), locations.get(locations.size()-1));
+
+                    DownloadTask downloadTask = new DownloadTask();
+
+                    downloadTask.execute(url);
+                }
+
                 Spinner spinner = (Spinner) findViewById(R.id.rutas_spinner);
-                ArrayAdapter<String> adapter = new ArrayAdapter<String>(getApplicationContext(), R.layout.rutas_layout, rutasArray);
+                ArrayAdapter<String> adapter = new ArrayAdapter<String>(getApplication(), R.layout.rutas_layout, rutasArray);
                 adapter.setDropDownViewResource(R.layout.rutas_dropdown_layout);
                 spinner.setAdapter(
                         new NoSeleccion(
                                 adapter,
                                 R.layout.no_seleccion,
-                                getApplicationContext()));
+                                getApplication()));
                 latitude = Double.valueOf(lat);
                 longitude = Double.valueOf(lon);
                 CameraUpdate center =
@@ -472,4 +466,5 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         }
     }
+
 }
