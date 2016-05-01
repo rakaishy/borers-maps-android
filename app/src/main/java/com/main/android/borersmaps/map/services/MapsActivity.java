@@ -46,15 +46,27 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.PolylineOptions;
 import com.main.android.borersmaps.NoSeleccion;
 import com.main.android.borersmaps.R;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -64,6 +76,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public static final String MIME_TEXT_PLAIN = "text/plain";
     private double latitude;
     private double longitude;
+
 
     private TextView mTextView;
     private NfcAdapter mNfcAdapter;
@@ -85,10 +98,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         ArrayList<String> rutasArray = new ArrayList<String>();
 
-        rutasArray.add("Valle Dorado - Guadalupe");
-        rutasArray.add("Sauzal - Maneadero");
-        rutasArray.add("De aqui - Pa' allá");
-        rutasArray.add("De un lado - Al otro");
+        rutasArray.add("Valle Dorado");
+        rutasArray.add("Sauzal");
+        rutasArray.add("De aqui");
+        rutasArray.add("De un lado");
 
         Spinner spinner = (Spinner) findViewById(R.id.rutas_spinner);
         ArrayAdapter<String> adapter = new ArrayAdapter<String>(this, R.layout.rutas_layout, rutasArray);
@@ -122,9 +135,155 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
 
         handleIntent(getIntent());
-        // ATTENTION: This was auto-generated to implement the App Indexing API.
-        // See https://g.co/AppIndexing/AndroidStudio for more information.
-        client = new GoogleApiClient.Builder(this).addApi(AppIndex.API).build();
+    }
+
+    private String getDirectionsUrl(LatLng origin,LatLng dest){
+
+        // Origin of route
+        String str_origin = "origin="+origin.latitude+","+origin.longitude;
+
+        // Destination of route
+        String str_dest = "destination="+dest.latitude+","+dest.longitude;
+
+        // Sensor enabled
+        String sensor = "sensor=false";
+
+        // Building the parameters to the web service
+        String parameters = str_origin+"&"+str_dest+"&"+sensor;
+
+        // Output format
+        String output = "json";
+
+        String url = "https://maps.googleapis.com/maps/api/directions/"+output+"?"+parameters;
+
+        return url;
+    }
+
+    private String downloadUrl(String strUrl) throws IOException {
+        String data = "";
+        InputStream iStream = null;
+        HttpURLConnection urlConnection = null;
+        try{
+            URL url = new URL(strUrl);
+
+            urlConnection = (HttpURLConnection) url.openConnection();
+
+            // Connecting to url
+            urlConnection.connect();
+
+            // Reading data from url
+            iStream = urlConnection.getInputStream();
+
+            BufferedReader br = new BufferedReader(new InputStreamReader(iStream));
+
+            StringBuffer sb  = new StringBuffer();
+
+            String line = "";
+            while( ( line = br.readLine())  != null){
+                sb.append(line);
+            }
+
+            data = sb.toString();
+
+            br.close();
+
+        }catch(Exception e){
+            Log.d("Exception while downloading url", e.toString());
+        }finally{
+            iStream.close();
+            urlConnection.disconnect();
+        }
+        return data;
+    }
+
+    // Fetches data from url passed
+    private class DownloadTask extends AsyncTask<String, Void, String>{
+
+        // Downloading data in non-ui thread
+        @Override
+        protected String doInBackground(String... url) {
+
+            // For storing data from web service
+            String data = "";
+
+            try{
+                // Fetching the data from web service
+                data = downloadUrl(url[0]);
+            }catch(Exception e){
+                Log.d("Background Task",e.toString());
+            }
+            return data;
+        }
+
+        // Executes in UI thread, after the execution of
+        // doInBackground()
+        @Override
+        protected void onPostExecute(String result) {
+            super.onPostExecute(result);
+
+            ParserTask parserTask = new ParserTask();
+
+            // Invokes the thread for parsing the JSON data
+            parserTask.execute(result);
+        }
+    }
+
+
+    private class ParserTask extends AsyncTask<String, Integer, List<List<HashMap<String,String>>>> {
+
+        @Override
+        protected List<List<HashMap<String, String>>> doInBackground(String... jsonData) {
+
+            JSONObject jObject;
+            List<List<HashMap<String, String>>> routes = null;
+
+            try{
+                jObject = new JSONObject(jsonData[0]);
+                DirectionsJSONParser parser = new DirectionsJSONParser();
+
+                // Starts parsing data
+                routes = parser.parse(jObject);
+            }catch(Exception e){
+                e.printStackTrace();
+            }
+            return routes;
+        }
+
+        @Override
+        protected void onPostExecute(List<List<HashMap<String, String>>> result) {
+            ArrayList<LatLng> points = null;
+            PolylineOptions lineOptions = null;
+            MarkerOptions markerOptions = new MarkerOptions();
+
+            // Traversing through all the routes
+            for(int i=0;i<result.size();i++){
+                points = new ArrayList<LatLng>();
+                lineOptions = new PolylineOptions();
+
+                // Fetching i-th route
+                List<HashMap<String, String>> path = result.get(i);
+
+                // Fetching all the points in i-th route
+                for(int j=0;j<path.size();j++){
+                    HashMap<String,String> point = path.get(j);
+
+                    double lat = Double.parseDouble(point.get("lat"));
+                    double lng = Double.parseDouble(point.get("lng"));
+                    LatLng position = new LatLng(lat, lng);
+
+                    points.add(position);
+                }
+
+                // Adding all the points in the route to LineOptions
+                lineOptions.addAll(points);
+                lineOptions.width(10);
+                lineOptions.color(Color.BLUE);
+            }
+
+            // Drawing polyline in the Google Map for the i-th route
+            mMap.addPolyline(lineOptions);
+        }
+
     }
 
     private void handleIntent(Intent intent) {
@@ -162,9 +321,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             return;
         }
-        googleMap.setMyLocationEnabled(true);
         mMap = googleMap;
-        mMap.setPadding(0, 100, 0, 0);
+
+        double lat1 = 31.866646;
+        double lon1 = -116.666684;
+        double lat2 = 31.825615;
+        double lon2 = -116.599759;
+        LatLng origin = new LatLng(lat1, lon1);
+        LatLng destination = new LatLng(lat2, lon2);
+        mMap.addMarker(new MarkerOptions()
+                .position(new LatLng(lat1, lon1))
+                .title("INICIO"));
+        mMap.addMarker(new MarkerOptions()
+                .position(new LatLng(lat2, lon2))
+                .title("FINAL"));
+        String url = getDirectionsUrl(origin, destination);
+
+        DownloadTask downloadTask = new DownloadTask();
+
+        downloadTask.execute(url);
     }
 
     public static void setupForegroundDispatch(final Activity activity, NfcAdapter adapter) {
@@ -285,8 +460,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         protected void onPostExecute(String result) {
             if (result != null) {
                 String[] coords = result.split(",");
-                String lat = coords[0]; // 004
-                String lon = coords[1]; // 034556
+                String lat = coords[0];
+                String lon = coords[1];
+                String idStop = coords[2];
                 latitude = Double.valueOf(lat);
                 longitude = Double.valueOf(lon);
                 CameraUpdate center =
